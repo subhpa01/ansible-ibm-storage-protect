@@ -1,0 +1,42 @@
+SETOPT SANDISCOVERY ON 
+
+DEFine library {{libr_name}} libtype=SCSI shared=yes
+define path {{sp_inst1_servername}} {{libr_name}}  srctype=server desttype=library device={{libr_device}}
+
+define drive {{libr_name}} {{libr_dr1_name}}
+define path {{sp_inst1_servername}}  {{libr_dr1_name}} srctype=server desttype=drive library={{libr_name}} device={{libr_dr1_device}} online=yes
+define drive {{libr_name}} {{libr_dr2_name}}
+define path {{sp_inst1_servername}}  {{libr_dr2_name}} srctype=server desttype=drive library={{libr_name}} device={{libr_dr2_device}} online=yes
+define drive {{libr_name}} {{libr_dr3_name}}
+define path {{sp_inst1_servername}}  {{libr_dr3_name}} srctype=server desttype=drive library={{libr_name}} device={{libr_dr3_device}} online=yes
+
+DEFine DEVclass {{libr_devclass}}  LIBRary={{libr_name}}  DEVType=LTO
+DEFine STGPOOL {{tapepool_name}} {{libr_devclass}}  MAXSCRatch={{tapepool_volnum}}
+
+copy domain standard {{tapepool_domain}}
+update copygroup {{tapepool_domain}} standard standard type=backup destination={{tapepool_name}}
+update copygroup {{tapepool_domain}} standard standard type=archive destination={{tapepool_name}}
+validate policyset {{tapepool_domain}} standard
+activate policyset {{tapepool_domain}} standard
+
+update mgmtclass tape {{tapepool_domain}} STANDARD spacemgtechnique=automatic migdestination={{tapepool_name}} MIGREQUIRESBKUP=NO
+validate policyset {{tapepool_domain}}  STANDARD
+activate policyset {{tapepool_domain}}  STANDARD
+
+{% for myhost in groups ['spclient'] %}
+register node {{myhost}} {{ba_node1_pwd}} domain={{dirpool_domain}} MAXNUMMP={{ba_node1_MAXNUMMP}} sessionsecurity=trans
+register admin {{ myhost}} {{ba_node1_pwd}} sessionsecurity=trans
+grant auth {{myhost}} classes=system
+{% endfor %}
+
+{% for myhost in groups ['sphsmclient'] %}
+register node {{myhost}} {{ba_node1_pwd}} domain={{tapepool_domain}} MAXNUMMP={{ba_node1_MAXNUMMP}} sessionsecurity=trans
+register admin {{ myhost}} {{ba_node1_pwd}} sessionsecurity=trans
+grant auth {{myhost}} classes=system
+{% endfor %}
+
+{% for myhost in groups ['spvelinux'] %}
+register node {{myhost}} {{ba_node1_pwd}} domain={{dirpool_domain}} MAXNUMMP={{ba_node1_MAXNUMMP}} sessionsecurity=trans
+register admin {{ myhost}} {{ba_node1_pwd}} sessionsecurity=trans
+grant auth {{myhost}} classes=system
+{% endfor %}

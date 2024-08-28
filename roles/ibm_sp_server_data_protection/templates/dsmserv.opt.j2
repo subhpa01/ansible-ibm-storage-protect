@@ -1,0 +1,12 @@
+COMMMETHOD TCPIP
+TCPPort {{sp_inst1_tcpport}}
+tcpnodelay yes
+DEVCONFIG devconf.dat
+VOLUMEHISTORY volhist.dat
+ACTIVELOGDirectory {{sp_inst1_alog}}
+ARCHLOGDirectory {{sp_inst1_arclog}}
+MAXFRAGMENTSIZE 5000 
+COMMTIMEOUT 3600 
+MAXSESSIONS 300 
+EXPINTERVAL 0
+DEDUPREQUIRESBACKUP NO 

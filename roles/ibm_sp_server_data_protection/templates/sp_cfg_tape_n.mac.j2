@@ -1,0 +1,16 @@
+SETOPT SANDISCOVERY ON 
+
+DEFine library {{tape_libr_name}} libtype=SCSI shared=yes
+PERForm LIBACTion {{tape_libr_name}} ACTion=define device={{tape_libr_device}}
+Label libvolume {{tape_libr_name}}  checkin=scratch search=yes labelsource=barcode overwrite=no
+
+DEFine DEVclass {{tape_libr_devclass}}  LIBRary={{tape_libr_name}}  DEVType=LTO
+DEFine STGPOOL {{tapepool_name}} {{tape_libr_devclass}}  MAXSCRatch={{tapepool_volnum}}
+
+copy domain standard {{tapepool_domain}}
+update copygroup {{tapepool_domain}} standard standard type=backup destination={{tapepool_domain}}
+update copygroup {{tapepool_domain}} standard standard type=archive destination={{tapepool_domain}}
+validate policyset {{tapepool_domain}} standard
+activate policyset {{tapepool_domain}} standard
+
+register node {{tape_node1_name}} {{tape_node1_pwd}} domain={{tapepool_domain}} MAXNUMMP={{tape_node1_MAXNUMMP}}

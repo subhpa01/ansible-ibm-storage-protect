@@ -1,0 +1,12 @@
+SET SERVername {{sp_inst1_servername}}
+SET SERVERPAssword {{sp_inst1_serverpwd}}
+register admin {{sp_inst1_admin}} {{sp_inst1_admin_pass}} sessionsecurity=trans
+grant auth {{sp_inst1_admin}} classes=system 
+
+DEFine STGPOOL {{dirpool_name}} STGType=dir
+DEFine STGPOOLDIRectory {{dirpool_name}} {{sp_inst1_dir1}}
+copy domain standard {{dirpool_domain}}
+update copygroup {{dirpool_domain}} standard standard type=backup destination={{dirpool_name}}
+update copygroup {{dirpool_domain}} standard standard type=archive destination={{dirpool_name}}
+validate policyset {{dirpool_domain}} standard
+activate policyset {{dirpool_domain}} standard

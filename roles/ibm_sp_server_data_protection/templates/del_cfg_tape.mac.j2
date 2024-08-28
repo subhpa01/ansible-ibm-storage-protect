@@ -1,0 +1,11 @@
+remove node {{tape_node1_name}}
+del domain {{tapepool_domain}}
+del STGPOOL {{tapepool_name}}
+del DEVclass {{libr_devclass}} 
+del path {{sp_inst1_servername}}  {{libr_dr1_name}} srctype=server desttype=drive
+del path {{sp_inst1_servername}}  {{libr_dr2_name}} srctype=server desttype=drive
+del path {{sp_inst1_servername}}  {{libr_dr3_name}} srctype=server desttype=drive
+del drive {{libr_name}} {{libr_dr1_name}}
+del drive {{libr_name}} {{libr_dr2_name}}
+del drive {{libr_name}} {{libr_dr3_name}}
+del libr  {{libr_name}} 

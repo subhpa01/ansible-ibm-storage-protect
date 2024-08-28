@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: IBM Corporation
+  description: Ansible role to prepare, install, configure, verify, uninstall, backup, restore, and other day-2 operations with IBM Storage Protect
+  company: IBM
+
+  license: Apache-2.0
+
+  min_ansible_version: 2.9
+
+  platforms:
+    - name: EL
+      versions:
+        - 8
+
+  galaxy_tags: []
+
+dependencies: []

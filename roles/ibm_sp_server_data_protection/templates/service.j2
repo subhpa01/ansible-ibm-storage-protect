@@ -1,0 +1,13 @@
+[Unit]
+Description=IBM Storage Protect Server instance {{sp_inst1_user}}
+
+[Service]
+TasksMax=infinity
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/etc/rc.d/init.d/{{sp_inst1_user}} start
+ExecStop=/etc/rc.d/init.d/{{sp_inst1_user}} stop
+ExecReload=/etc/rc.d/init.d/{{sp_inst1_user}} restart
+
+[Install]
+WantedBy=multi-user.target
