@@ -1,13 +1,13 @@
 #!/usr/bin/python
 
 
- ibm.spectrum_protect.configure:
-    server: "{{ physical_server }}" 
-    instance_fqdn: "{{ tcp_server_address }}"
-    port: "{{ admin_port }}"
-    username: "{{ username }}"
-    password: "{{ password }}"
-    state: register
+# ibm.spectrum_protect.register:
+#    server: "{{ physical_server }}" 
+#    instance_fqdn: "{{ tcp_server_address }}"
+#    port: "{{ admin_port }}"
+#    username: "{{ username }}"
+#    password: "{{ password }}"
+#    state: present
 
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
