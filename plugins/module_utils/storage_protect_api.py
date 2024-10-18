@@ -72,8 +72,10 @@ class StorageProtectModule(AnsibleModule):
     def run_command(self, command):
         try:
             result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.json_output['rc'] = result.returncode
             return result.stdout.decode('utf-8'), None
         except subprocess.CalledProcessError as e:
+            self.json_output['rc'] = e.returncode
             return None, e.stderr.decode('utf-8')
 
     # TODO - This will get split out into more common pieces but for now lets get it working for the register
@@ -96,4 +98,6 @@ class StorageProtectModule(AnsibleModule):
             else:
                 self.fail_json(msg=error)
         self.json_output['changed'] = True
+        self.json_output['output'] = output
+        self.json_output['error'] = error
         self.exit_json(**self.json_output)
