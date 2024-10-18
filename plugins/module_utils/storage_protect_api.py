@@ -15,6 +15,7 @@ from ansible.module_utils.six.moves.configparser import ConfigParser, NoOptionEr
 from socket import getaddrinfo, IPPROTO_TCP
 import time
 import re
+import subprocess
 from json import loads, dumps
 from os.path import isfile, expanduser, split, join, exists, isdir
 from os import access, R_OK, getcwd, environ
@@ -42,7 +43,7 @@ class StorageProtectModule(AnsibleModule):
         validate_certs=dict(type='bool', aliases=['tower_verify_ssl'], required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_VERIFY_SSL'])),
         request_timeout=dict(type='float', required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_REQUEST_TIMEOUT'])),
     )
-    host = '127.0.0.1'
+    hostname = '127.0.0.1'
     username = None
     password = None
     verify_ssl = True
@@ -68,14 +69,31 @@ class StorageProtectModule(AnsibleModule):
         else:
             super().__init__(argument_spec=full_argspec, **kwargs)
 
-        self.load_config_files()
-
-        # Try to resolve the hostname
+    def run_command(self, command):
         try:
-            proxy_env_var_name = "{0}_proxy".format(self.url.scheme)
-            if not environ.get(proxy_env_var_name) and not environ.get(proxy_env_var_name.upper()):
-                addrinfolist = getaddrinfo(self.url.hostname, self.url.port, proto=IPPROTO_TCP)
-                for family, kind, proto, canonical, sockaddr in addrinfolist:
-                    sockaddr[0]
-        except Exception as e:
-            self.fail_json(msg="Unable to resolve Spectrum Protect Host ({1}): {0}".format(self.url.hostname, e))
+            result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            return result.stdout.decode('utf-8'), None
+        except subprocess.CalledProcessError as e:
+            return None, e.stderr.decode('utf-8')
+
+    # TODO - This will get split out into more common pieces but for now lets get it working for the register
+    def register(self, server):
+        # home = os.environ ['HOME']
+        # gsk = '/usr/bin/gsk8capicmd_64'
+        # kdb = '{home}/IBM/SpectrumProtect/certs/dsmcert.kdb'.format(home=home)
+        # label = f*'TSM server (name) self-signed key'
+        # fn = f'(home)/IBM/SpectrumProtect/certs/[name}.txt'
+        # (gsk) -cert -delete -db (kdb} -stashed -label flabel)
+        # (gsk)-cert -add -db (kdb) -stashed -label (labelf-file {fn) -format ascil
+        # (gsk) -cert -list -db (kdb) -stashed
+        command = "dsmadmc -se={hostname} -id={username} -pass={password} register node {server}".format(hostname=self.hostname, username=self.username, password=self.password, server=server)
+        output, error = self.run_command(command)
+        if error:
+            #  Check if its an idempotency error, in which case contine and mark {changed: false}
+            if error == "already exists":
+                self.json_output['changed'] = False
+                self.exit_json(**self.json_output)
+            else:
+                self.fail_json(msg=error)
+        self.json_output['changed'] = True
+        self.exit_json(**self.json_output)

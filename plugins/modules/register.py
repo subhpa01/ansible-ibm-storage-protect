@@ -51,15 +51,15 @@ EXAMPLES = '''
 - name: Register server
   ibm.spectrum_protect.register:
    server: "{{ physical_server }}"
-   url: "{{ tcp_server_address }}"
+   hostname: "{{ tcp_server_address }}"
    username: "{{ username }}"
    password: "{{ password }}"
    state: registered
 
 - name: Deregister server
   ibm.spectrum_protect.register:
-   server: "{{ physical_server }}" 
-   url: "{{ tcp_server_address }}"
+   server: "{{ physical_server }}"
+   hostname: "{{ tcp_server_address }}"
    username: "{{ username }}"
    password: "{{ password }}"
    state: deregistered
@@ -75,12 +75,14 @@ def main():
 
     module = StorageProtectModule(argument_spec=argument_spec, supports_check_mode=True)
 
+    server = module.params.get('server')
     state = module.params.get('state')
 
     if state == 'absent' or state == 'deregistered':
-        # Deregister(server)
+        print("TODO")
+        # deregister(server)
     else:
-        # Register(server)
+        module.register(server)
 
 
 if __name__ == "__main__":
