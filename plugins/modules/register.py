@@ -43,7 +43,7 @@ options:
       choices: ["present", "absent", "registered", "deregistered"]
       type: str
 
-extends_documentation_fragment: ibm.spectrum_protect.auth
+extends_documentation_fragment: ibm.storage_protect.auth
 '''
 
 
