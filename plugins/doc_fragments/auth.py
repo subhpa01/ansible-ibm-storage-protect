@@ -34,7 +34,7 @@ options:
     - Whether to allow insecure connections to IBM Spectrum Protect.
     - If C(no), SSL certificates will not be validated.
     - This should only be used on personally controlled sites using self-signed certificates.
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_VERIFY_SSL)
+    - If value not set, will try environment variable C(SPECTRUM_PROTECT_VALIDATE_CERTS)
     type: bool
   request_timeout:
     description:

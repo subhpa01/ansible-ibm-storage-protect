@@ -3,36 +3,8 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible.module_utils.urls import Request, SSLValidationError, ConnectionError
-from ansible.module_utils.parsing.convert_bool import boolean as strtobool
-from ansible.module_utils.six import PY2
-from ansible.module_utils.six import raise_from, string_types
-from ansible.module_utils.six.moves import StringIO
-from ansible.module_utils.six.moves.urllib.error import HTTPError
-from ansible.module_utils.six.moves.http_cookiejar import CookieJar
-from ansible.module_utils.six.moves.urllib.parse import urlparse, urlencode, quote
-from ansible.module_utils.six.moves.configparser import ConfigParser, NoOptionError
-from socket import getaddrinfo, IPPROTO_TCP
-import time
-import re
 import subprocess
-from json import loads, dumps
-from os.path import isfile, expanduser, split, join, exists, isdir
-from os import access, R_OK, getcwd, environ
-try:
-    from ansible.module_utils.compat.version import LooseVersion as Version
-except ImportError:
-    try:
-        from distutils.version import LooseVersion as Version
-    except ImportError:
-        raise AssertionError('To use this plugin or module with ansible-core 2.11, you need to use Python < 3.12 with distutils.version present')
 
-try:
-    import yaml
-
-    HAS_YAML = True
-except ImportError:
-    HAS_YAML = False
 
 class StorageProtectModule(AnsibleModule):
     url = None
@@ -40,13 +12,13 @@ class StorageProtectModule(AnsibleModule):
         hostname=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_HOST'])),
         username=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_USERNAME'])),
         password=dict(no_log=True, required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_PASSWORD'])),
-        validate_certs=dict(type='bool', aliases=['tower_verify_ssl'], required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_VERIFY_SSL'])),
+        validate_certs=dict(type='bool', required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_VALIDATE_CERTS'])),
         request_timeout=dict(type='float', required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_REQUEST_TIMEOUT'])),
     )
     hostname = '127.0.0.1'
     username = None
     password = None
-    verify_ssl = True
+    validate_certs = True
     request_timeout = 10
     authenticated = False
     version_checked = False
@@ -69,35 +41,51 @@ class StorageProtectModule(AnsibleModule):
         else:
             super().__init__(argument_spec=full_argspec, **kwargs)
 
-    def run_command(self, command):
+        for param, _ in list(StorageProtectModule.AUTH_ARGSPEC.items()):
+            setattr(self, param, self.params.get(param))
+
+    def run_command(self, command, auto_exit=True):
         try:
             result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            self.json_output['rc'] = result.returncode
-            return result.stdout.decode('utf-8'), None
-        except subprocess.CalledProcessError as e:
-            self.json_output['rc'] = e.returncode
-            return None, e.stderr.decode('utf-8')
-
-    # TODO - This will get split out into more common pieces but for now lets get it working for the register
-    def register(self, server):
-        # home = os.environ ['HOME']
-        # gsk = '/usr/bin/gsk8capicmd_64'
-        # kdb = '{home}/IBM/SpectrumProtect/certs/dsmcert.kdb'.format(home=home)
-        # label = f*'TSM server (name) self-signed key'
-        # fn = f'(home)/IBM/SpectrumProtect/certs/[name}.txt'
-        # (gsk) -cert -delete -db (kdb} -stashed -label flabel)
-        # (gsk)-cert -add -db (kdb) -stashed -label (labelf-file {fn) -format ascil
-        # (gsk) -cert -list -db (kdb) -stashed
-        command = "dsmadmc -se={hostname} -id={username} -pass={password} register node {server}".format(hostname=self.hostname, username=self.username, password=self.password, server=server)
-        output, error = self.run_command(command)
-        if error:
-            #  Check if its an idempotency error, in which case contine and mark {changed: false}
-            if error == "already exists":
+            if auto_exit and result.returncode == 10:
                 self.json_output['changed'] = False
                 self.exit_json(**self.json_output)
-            else:
-                self.fail_json(msg=error)
+            if auto_exit and result.returncode == 0:
+                self.json_output['changed'] = True
+                self.json_output['output'] = result.stdout.decode('utf-8')
+                self.exit_json(**self.json_output)
+            return result.returncode, result.stdout.decode('utf-8'), None
+        except subprocess.CalledProcessError as e:
+            if auto_exit and e.returncode == 10:
+                self.json_output['changed'] = False
+                self.exit_json(**self.json_output)
+            return e.returncode, e.stdout.decode('utf-8'), e
+
+    def find_one(self, type, name):
+        command = f"dsmadmc -id={self.username} -pass={self.password} -dataonly=yes -comma q {type} {name} format=detailed"
+        rc, out, _ = self.run_command(command, auto_exit=False)
+        self.json_output['exists'] = rc == 0
+        return rc == 0, out
+
+    def register(self, node, options=None, exists=False, existing=None):
+        action = 'update' if exists else 'register'
+        command = f"dsmadmc -id={self.username} -pass={self.password} {action} node {node} {options}"
+        self.json_output['command'] = command
+        rc, output, error = self.run_command(command, auto_exit=False)
+        if rc != 0 and rc != 10:
+            self.fail_json(msg=output, rc=rc, **self.json_output)
+        if exists or rc == 10:
+            # Check if idempotent
+            _, new_node = self.find_one('node', node)
+            self.json_output['changed'] = existing != new_node
+            self.exit_json(**self.json_output)
         self.json_output['changed'] = True
-        self.json_output['output'] = output
-        self.json_output['error'] = error
         self.exit_json(**self.json_output)
+
+    def deregister_node(self, node, options=None, exists=False, existing=None):
+        if not exists:
+            self.exit_json(**self.json_output)
+        command = "dsmadmc -id={username} -pass={password} remove node {node}".format(username=self.username, password=self.password, node=node)
+        self.json_output['command'] = command
+        _, errmsg, _ = self.run_command(command)
+        self.fail_json(msg=errmsg, **self.json_output)
