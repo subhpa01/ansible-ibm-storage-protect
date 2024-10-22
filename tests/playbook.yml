@@ -7,7 +7,7 @@
     ibmsp_password: adminPassword12345678
   tasks:
     - name: Register hosts
-      ibm.storage_protect.register:
+      ibm.storage_protect.node:
         node: Test
         node_password: P@ssword123456789
         state: "{{ ibmsp_state | default(omit) }}"
