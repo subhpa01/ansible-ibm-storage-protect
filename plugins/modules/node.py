@@ -387,7 +387,7 @@ def main():
             'min_extent_size': 'MINIMUMExtentsize',
         }
 
-        not_on_update = ['node_type', 'backup_repl_rule_default', 'archive_repl_rule_default', 'space_repl_rule_default']
+        not_on_update = ['node_type', 'backup_repl_rule_default', 'archive_repl_rule_default', 'space_repl_rule_default', 'user_id', 'option_set']
 
         node_password = module.params.get('node_password')
         if node_password:
@@ -408,6 +408,8 @@ def main():
                 if opt == 'min_extent_size':
                     value = f'{value}KB'
                 options += f" {options_params[opt]}={value}"
+            elif exists and opt in not_on_update:
+                module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
         module.register(node, options, exists, existing)
 
