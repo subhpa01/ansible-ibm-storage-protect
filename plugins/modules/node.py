@@ -21,11 +21,11 @@ ANSIBLE_METADATA = {'metadata_version': '1.1', 'status': ['preview'], 'supported
 
 DOCUMENTATION = '''
 ---
-module: register
+module: node
 author: "Tom page (@Tompage1994)"
-short_description: Register or Deregister a node from IBM Spectrum Protect
+short_description: Register or Remove a node from IBM Spectrum Protect
 description:
-    - Register or Deregister a node from IBM Spectrum Protect
+    - Register or Remove a node from IBM Spectrum Protect
 options:
     node:
       description:
@@ -256,9 +256,9 @@ options:
       description:
         - Desired state of the registration.
         - 'present' and 'registered' have the same effect.
-        - 'absent' and 'deregistered' have the same effect.
+        - 'absent', 'deregistered' and 'removed' have the same effect.
       default: "registered"
-      choices: ["present", "absent", "registered", "deregistered"]
+      choices: ["present", "absent", "registered", "deregistered", "removed"]
       type: str
 
 extends_documentation_fragment: ibm.storage_protect.auth
@@ -267,7 +267,7 @@ extends_documentation_fragment: ibm.storage_protect.auth
 
 EXAMPLES = '''
 - name: Register node
-  ibm.spectrum_protect.register:
+  ibm.spectrum_protect.node:
     node: "{{ physical_node }}"
     node_password: P@ssword
     node_password_expiry: 90
@@ -281,7 +281,7 @@ EXAMPLES = '''
     state: registered
 
 - name: Deregister node
-  ibm.spectrum_protect.register:
+  ibm.spectrum_protect.node:
     node: "{{ physical_node }}"
     hostname: "{{ tcp_node_address }}"
     username: "{{ username }}"
@@ -331,7 +331,7 @@ def main():
         session_security=dict(choices=['transitional', 'strict'], default='transitional'),
         split_large_objects=dict(type='bool'),
         min_extent_size=dict(type='int', choices=[50, 250, 750], default=50),
-        state=dict(choices=['present', 'absent', 'registered', 'deregistered'], default='present'),
+        state=dict(choices=['present', 'absent', 'registered', 'deregistered', 'removed'], default='present'),
     )
 
     required_by = {
@@ -340,15 +340,13 @@ def main():
         'space_repl_rule_default': 'repl_state',
     }
 
-    # TODO - target_level requires node_type=='client'
-
     module = StorageProtectModule(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
 
     node = module.params.get('node')
     state = module.params.get('state')
     exists, existing = module.find_one('node', node)
 
-    if state == 'absent' or state == 'deregistered':
+    if state == 'absent' or state == 'deregistered' or state == 'removed':
         module.deregister_node(node, exists=exists)
     else:
         options_params = {

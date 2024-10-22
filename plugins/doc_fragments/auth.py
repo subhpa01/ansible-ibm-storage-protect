@@ -13,11 +13,11 @@ class ModuleDocFragment(object):
     # IBM Spectrum Protect documentation fragment
     DOCUMENTATION = r'''
 options:
-  hostname:
+  server_name:
     description:
-    - URL to your IBM Spectrum Protect instance.
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_HOST)
-    - If value not specified by any means, the value of C(127.0.0.1) will be used
+    - SERVERNAME your IBM Spectrum Protect instance as specified in the dsm.sys.
+    - If value not set, will try environment variable C(SPECTRUM_PROTECT_SERVERNAME)
+    - If value not specified by any means, the value of C(local) will be used
     type: str
   username:
     description:
@@ -29,13 +29,6 @@ options:
     - Password for your IBM Spectrum Protect instance.
     - If value not set, will try environment variable C(SPECTRUM_PROTECT_PASSWORD)
     type: str
-  validate_certs:
-    description:
-    - Whether to allow insecure connections to IBM Spectrum Protect.
-    - If C(no), SSL certificates will not be validated.
-    - This should only be used on personally controlled sites using self-signed certificates.
-    - If value not set, will try environment variable C(SPECTRUM_PROTECT_VALIDATE_CERTS)
-    type: bool
   request_timeout:
     description:
     - Specify the timeout Ansible should use in requests to the IBM Spectrum Protect host.

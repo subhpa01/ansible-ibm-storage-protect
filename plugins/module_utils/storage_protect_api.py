@@ -9,13 +9,12 @@ import subprocess
 class StorageProtectModule(AnsibleModule):
     url = None
     AUTH_ARGSPEC = dict(
-        hostname=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_HOST'])),
+        server_name=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_SERVERNAME'])),
         username=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_USERNAME'])),
         password=dict(no_log=True, required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_PASSWORD'])),
-        validate_certs=dict(type='bool', required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_VALIDATE_CERTS'])),
         request_timeout=dict(type='float', required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_REQUEST_TIMEOUT'])),
     )
-    hostname = '127.0.0.1'
+    server_name = 'local'
     username = None
     password = None
     validate_certs = True
@@ -61,15 +60,19 @@ class StorageProtectModule(AnsibleModule):
                 self.exit_json(**self.json_output)
             return e.returncode, e.stdout.decode('utf-8'), e
 
-    def find_one(self, type, name):
-        command = f"dsmadmc -id={self.username} -pass={self.password} -dataonly=yes -comma q {type} {name} format=detailed"
+    def find_one(self, object_type, name):
+        command = (
+            f"dsmadmc -server_name={self.server_name} "
+            f"-id={self.username} -pass={self.password} -dataonly=yes -comma "
+            f"q {object_type} {name} format=detailed"
+        )
         rc, out, _ = self.run_command(command, auto_exit=False)
         self.json_output['exists'] = rc == 0
         return rc == 0, out
 
     def register(self, node, options=None, exists=False, existing=None):
         action = 'update' if exists else 'register'
-        command = f"dsmadmc -id={self.username} -pass={self.password} {action} node {node} {options}"
+        command = f"dsmadmc -server_name={self.server_name} -id={self.username} -pass={self.password} {action} node {node} {options}"
         self.json_output['command'] = command
         rc, output, error = self.run_command(command, auto_exit=False)
         if rc != 0 and rc != 10:
