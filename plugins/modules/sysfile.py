@@ -86,7 +86,7 @@ import os
 
 def main():
     argument_spec = dict(
-        servername=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_SERVERNAME'])),
+        server_name=dict(required=False, fallback=(env_fallback, ['SPECTRUM_PROTECT_SERVERNAME'])),
         comm_method=dict(choices=['namedpipes', 'none', 'sharedmem', 'tcpip', 'v6tcpip'], default='tcpip'),
         tcp_port=dict(type='int', default=1500),
         tcp_server_address=dict(default='127.0.0.1'),
