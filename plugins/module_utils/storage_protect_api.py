@@ -43,7 +43,7 @@ class StorageProtectModule(AnsibleModule):
         for param, _ in list(StorageProtectModule.AUTH_ARGSPEC.items()):
             setattr(self, param, self.params.get(param))
 
-    def run_command(self, command, auto_exit=True, dataonly=True):
+    def run_command(self, command, auto_exit=True, dataonly=True, exit_on_fail=True):
         command = f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} ' + ('-dataonly=yes ' if dataonly else '') + command
         self.json_output['command'] = command
         try:
@@ -60,31 +60,25 @@ class StorageProtectModule(AnsibleModule):
             if auto_exit and e.returncode == 10:
                 self.json_output['changed'] = False
                 self.exit_json(**self.json_output)
+            if exit_on_fail and e.returncode != 10:
+                self.fail_json(msg=e.stdout.decode('utf-8'), rc=e.returncode, **self.json_output)
             return e.returncode, e.stdout.decode('utf-8'), e
 
     def find_one(self, object_type, name):
         command = f"-comma q {object_type} {name} format=detailed"
-        rc, out, _ = self.run_command(command, auto_exit=False)
+        rc, out, _ = self.run_command(command, auto_exit=False, exit_on_fail=False)
         self.json_output['exists'] = rc == 0
         return rc == 0, out
 
-    def register_node(self, node, options=None, exists=False, existing=None):
-        action = 'update' if exists else 'register'
-        command = f"{action} node {node} {options}"
+    def perform_action(self, action, object_type, object_identifier, options='', exists=False, existing=None):
+        if not exists and action in ['remove', 'delete']:
+            self.exit_json(**self.json_output)
+        command = f"{action} {object_type} {object_identifier} {options}"
         rc, output, error = self.run_command(command, auto_exit=False)
-        if rc != 0 and rc != 10:
-            self.fail_json(msg=output, rc=rc, **self.json_output)
         if exists or rc == 10:
             # Check if idempotent
-            _, new_node = self.find_one('node', node)
-            self.json_output['changed'] = existing != new_node
+            _, new_object = self.find_one(object_type, object_identifier)
+            self.json_output['changed'] = existing != new_object
             self.exit_json(**self.json_output)
         self.json_output['changed'] = True
         self.exit_json(**self.json_output)
-
-    def deregister_node(self, node, options=None, exists=False, existing=None):
-        if not exists:
-            self.exit_json(**self.json_output)
-        command = f"remove node {node}"
-        _, errmsg, _ = self.run_command(command)
-        self.fail_json(msg=errmsg, **self.json_output)

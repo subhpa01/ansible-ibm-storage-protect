@@ -347,7 +347,7 @@ def main():
     exists, existing = module.find_one('node', node)
 
     if state == 'absent' or state == 'deregistered' or state == 'removed':
-        module.deregister_node(node, exists=exists)
+        module.perform_action('remove', 'node', node, exists=exists)
     else:
         options_params = {
             'node_password_expiry': 'PASSExp',
@@ -411,7 +411,7 @@ def main():
             elif exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
-        module.register_node(node, options, exists, existing)
+        module.perform_action('register', 'node', node, options=options, exists=exists, existing=existing)
 
 
 if __name__ == "__main__":
