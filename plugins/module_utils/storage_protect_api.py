@@ -62,7 +62,7 @@ class StorageProtectModule(AnsibleModule):
 
     def find_one(self, object_type, name):
         command = (
-            f"dsmadmc -server_name={self.server_name} "
+            f"dsmadmc -servername={self.server_name} "
             f"-id={self.username} -pass={self.password} -dataonly=yes -comma "
             f"q {object_type} {name} format=detailed"
         )
@@ -72,7 +72,7 @@ class StorageProtectModule(AnsibleModule):
 
     def register(self, node, options=None, exists=False, existing=None):
         action = 'update' if exists else 'register'
-        command = f"dsmadmc -server_name={self.server_name} -id={self.username} -pass={self.password} {action} node {node} {options}"
+        command = f"dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} {action} node {node} {options}"
         self.json_output['command'] = command
         rc, output, error = self.run_command(command, auto_exit=False)
         if rc != 0 and rc != 10:
@@ -88,7 +88,7 @@ class StorageProtectModule(AnsibleModule):
     def deregister_node(self, node, options=None, exists=False, existing=None):
         if not exists:
             self.exit_json(**self.json_output)
-        command = "dsmadmc -id={username} -pass={password} remove node {node}".format(username=self.username, password=self.password, node=node)
+        command = f"dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} remove node {node}"
         self.json_output['command'] = command
         _, errmsg, _ = self.run_command(command)
         self.fail_json(msg=errmsg, **self.json_output)
