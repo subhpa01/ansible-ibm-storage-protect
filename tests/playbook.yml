@@ -15,6 +15,6 @@
         node_password_expiry: 90
         can_archive_delete: true
         min_extent_size: 250
-        hostname: "{{ ibmsp_host }}"
+        server_name: "{{ ibmsp_host }}"
         username: "{{ ibmsp_username }}"
         password: "{{ ibmsp_password }}"
