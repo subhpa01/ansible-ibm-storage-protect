@@ -411,7 +411,7 @@ def main():
             elif exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
-        module.register(node, options, exists, existing)
+        module.register_node(node, options, exists, existing)
 
 
 if __name__ == "__main__":

@@ -43,7 +43,9 @@ class StorageProtectModule(AnsibleModule):
         for param, _ in list(StorageProtectModule.AUTH_ARGSPEC.items()):
             setattr(self, param, self.params.get(param))
 
-    def run_command(self, command, auto_exit=True):
+    def run_command(self, command, auto_exit=True, dataonly=True):
+        command = f'dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} ' + ('-dataonly=yes ' if dataonly else '') + command
+        self.json_output['command'] = command
         try:
             result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if auto_exit and result.returncode == 10:
@@ -61,19 +63,14 @@ class StorageProtectModule(AnsibleModule):
             return e.returncode, e.stdout.decode('utf-8'), e
 
     def find_one(self, object_type, name):
-        command = (
-            f"dsmadmc -servername={self.server_name} "
-            f"-id={self.username} -pass={self.password} -dataonly=yes -comma "
-            f"q {object_type} {name} format=detailed"
-        )
+        command = f"-comma q {object_type} {name} format=detailed"
         rc, out, _ = self.run_command(command, auto_exit=False)
         self.json_output['exists'] = rc == 0
         return rc == 0, out
 
-    def register(self, node, options=None, exists=False, existing=None):
+    def register_node(self, node, options=None, exists=False, existing=None):
         action = 'update' if exists else 'register'
-        command = f"dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} {action} node {node} {options}"
-        self.json_output['command'] = command
+        command = f"{action} node {node} {options}"
         rc, output, error = self.run_command(command, auto_exit=False)
         if rc != 0 and rc != 10:
             self.fail_json(msg=output, rc=rc, **self.json_output)
@@ -88,7 +85,6 @@ class StorageProtectModule(AnsibleModule):
     def deregister_node(self, node, options=None, exists=False, existing=None):
         if not exists:
             self.exit_json(**self.json_output)
-        command = f"dsmadmc -servername={self.server_name} -id={self.username} -pass={self.password} remove node {node}"
-        self.json_output['command'] = command
+        command = f"remove node {node}"
         _, errmsg, _ = self.run_command(command)
         self.fail_json(msg=errmsg, **self.json_output)
