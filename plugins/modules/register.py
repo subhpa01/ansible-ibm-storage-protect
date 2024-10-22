@@ -45,14 +45,213 @@ options:
       description:
         - Specifies the number of days the password remains valid
         - You can set the password expiration period 0 - 9999 days. A value of 0 means that the password never expires.
-        - If you do not specify this parameter, the server common-password expiration period is used which is 90 days unless changed by issuing the SET PASSEXP command.
+        - If you do not specify this parameter, the server common-password expiration period is used which is 90 days unless changed.
       type: int
+    user_id:
+      description:
+        - Administrative user ID with client owner authority or 'NONE' (the default value).
+      required: false
+      type: str
+    contact:
+      description:
+        - Contact information for the node, up to 255 characters.
+      required: false
+      type: str
+    policy_domain:
+      description:
+        - The policy domain to assign the node to. Default is 'STANDARD'.
+      required: false
+      type: str
+    compression:
+      description:
+        - Defines whether the node compresses files before sending them to the server.
+      choices: ['client', 'true', 'false']
+      default: 'client'
+      required: false
+      type: str
+    can_archive_delete:
+      description:
+        - Specifies whether the node can delete archived data.
+      required: false
+      type: bool
+    can_backup_delete:
+      description:
+        - Specifies whether the node can delete backed-up data.
+      required: false
+      type: bool
+    option_set:
+      description:
+        - Client option set to be used by the node.
+      required: false
+      type: str
+    force_password_reset:
+      description:
+        - Forces a password reset on the node upon the next login.
+      required: false
+      type: bool
+    node_type:
+      description:
+        - Specifies the type of node being registered. Default is 'Client'.
+      choices: ['client', 'nas', 'server', 'objectclient']
+      default: 'client'
+      required: false
+      type: str
+    url:
+      description:
+        - URL associated with the node.
+      required: false
+      type: str
+    utility_url:
+      description:
+        - Utility URL for the node.
+      required: false
+      type: str
+    max_mount_points:
+      description:
+        - Maximum number of mount points for the node.
+        - The default value is 1. You can specify an integer in the range 0 - 999.
+      required: false
+      type: int
+    auto_rename_file_spaces:
+      description:
+        - Specifies whether file spaces should be automatically renamed.
+      choices: ['client', 'true', 'false']
+      default: 'No'
+      required: false
+      type: str
+    keep_mount_points:
+      description:
+        - Specifies if mount points should persist after use.
+      required: false
+      type: bool
+    max_transaction_group:
+      description:
+        - Maximum number of objects in a single transaction group.
+        - The default value is 0. Specifying 0 indicates that the node uses the server global value that is set in the server options file.
+        - To use a value other than the server global value, specify a value in the range 4 - 65000.
+      required: false
+      type: int
+    data_write_path:
+      description:
+        - Defines the data write path.
+      choices: ['any', 'lan', 'lanfree']
+      default: 'any'
+      required: false
+      type: str
+    data_read_path:
+      description:
+        - Defines the data read path.
+      choices: ['any', 'lan', 'lanfree']
+      default: 'any'
+      required: false
+      type: str
+    target_level:
+      description:
+        - Specifies the target replication level for the node.
+        - The parameter applies only to nodes with a type of CLIENT.
+        - You can substitute an applicable release package for Version.Release.Modification.Fix (V.R.M.F) Level. For example: TARGETLevel=7.1.0.0.
+      required: false
+      type: str
+    session_initiation:
+      description:
+        - Determines whether the session is initiated by the client or server.
+      choices: ['clientorserver', 'serveronly']
+      default: 'clientorserver'
+      required: false
+      type: str
+    session_ip:
+      description:
+        - Specifies the client IP address that the server contacts to initiate scheduled events.
+        - Matches to the HLAddress Parameter for the dsmadmc CLI.
+      required: false
+      type: str
+    session_port:
+      description:
+        - Specifies the client port number on which the client listens for sessions from the server.
+        - Matches to the LLAddress Parameter for the dsmadmc CLI.
+      required: false
+      type: int
+    email:
+      description:
+        - Email address associated with the node.
+      required: false
+      type: str
+    deduplication:
+      description:
+        - Enables deduplication for the node.
+      choices: ['clientorserver', 'serveronly']
+      default: 'clientorserver'
+      required: false
+      type: str
+    backup_initiation:
+      description:
+        - Specifies backup initiation type.
+      choices: ['all', 'root']
+      default: 'all'
+      required: false
+      type: str
+    repl_state:
+      description:
+        - Controls the replication state for the node.
+      choices: ['enabled', 'disabled']
+      required: false
+      type: str
+    backup_repl_rule_default:
+      description:
+        - Default rule for backup replication.
+      choices: ['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']
+      required: false
+      type: str
+    archive_repl_rule_default:
+      description:
+        - Default rule for archive replication.
+      choices: ['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']
+      required: false
+      type: str
+    space_repl_rule_default:
+      description:
+        - Default rule for space replication.
+      choices: ['ALL_DATA', 'ACTIVE_DATA', 'ALL_DATA_HIGH_PRIORITY', 'ACTIVE_DATA_HIGH_PRIORITY', 'DEFAULT', 'NONE']
+      required: false
+      type: str
+    recover_damaged:
+      description:
+        - Specifies if the node should recover damaged objects.
+      required: false
+      type: bool
+    role_override:
+      description:
+        - Specifies the role override.
+      choices: ['client', 'server', 'other', 'usereported']
+      default: 'usereported'
+      required: false
+      type: str
+    auth_method:
+      description:
+        - Authentication method for the node.
+      choices: ['local', 'ldap']
+      default: 'local'
+      required: false
+      type: str
     session_security:
       description:
         - Specifies whether the node must use the most secure settings to communicate with an IBM Storage Protect server.
         - The system will default to "transitional"
       choices: ["strict", "transitional"]
+      default: 'trasitional'
       type: str
+    split_large_objects:
+      description:
+        - Specifies if large objects should be split during backup.
+      required: false
+      type: bool
+    min_extent_size:
+      description:
+        - Minimum size of extents in KB (50, 250, or 750).
+      choices: [50, 250, 750]
+      default: 50
+      required: false
+      type: int
     state:
       description:
         - Desired state of the registration.
@@ -72,6 +271,10 @@ EXAMPLES = '''
     node: "{{ physical_node }}"
     node_password: P@ssword
     node_password_expiry: 90
+    policy_domain: "DOMAIN1"
+    compression: true
+    auth_method: "LDAP"
+    contact: "admin@company.com"
     hostname: "{{ tcp_node_address }}"
     username: "{{ username }}"
     password: "{{ password }}"
@@ -87,6 +290,7 @@ EXAMPLES = '''
 '''
 
 from ..module_utils.storage_protect_api import StorageProtectModule
+
 
 def main():
     argument_spec = dict(
@@ -130,11 +334,13 @@ def main():
         state=dict(choices=['present', 'absent', 'registered', 'deregistered'], default='present'),
     )
 
-    required_by={
+    required_by = {
         'backup_repl_rule_default': 'repl_state',
         'archive_repl_rule_default': 'repl_state',
         'space_repl_rule_default': 'repl_state',
     }
+
+    # TODO - target_level requires node_type=='client'
 
     module = StorageProtectModule(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
 
