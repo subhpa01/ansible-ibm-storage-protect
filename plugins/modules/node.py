@@ -273,7 +273,7 @@ EXAMPLES = '''
     node_password_expiry: 90
     policy_domain: "DOMAIN1"
     compression: true
-    auth_method: "LDAP"
+    auth_method: "local"
     contact: "admin@company.com"
     hostname: "{{ tcp_node_address }}"
     username: "{{ username }}"
@@ -411,7 +411,7 @@ def main():
             elif exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
-        module.perform_action('register', 'node', node, options=options, exists=exists, existing=existing)
+        module.perform_action('update' if exists else 'register', 'node', node, options=options, exists=exists, existing=existing)
 
 
 if __name__ == "__main__":
