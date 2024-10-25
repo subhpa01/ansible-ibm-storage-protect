@@ -83,7 +83,7 @@ class StorageProtectModule(AnsibleModule):
         if exists or rc == 10:
             # Check if idempotent
             _, new_object = self.find_one(object_type, object_identifier)
-            self.json_output['changed'] = self.json_output['changed'] or existing and existing != new_object
+            self.json_output['changed'] = self.json_output['changed'] or existing and existing != new_object or exists and action in ['remove', 'delete']
             if auto_exit:
                 self.exit_json(**self.json_output)
             return rc

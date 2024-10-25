@@ -421,7 +421,16 @@ def main():
 
         schedules = module.params.get('schedules')
         policy_domain = module.params.get('policy_domain')
+        node_schedules = []
         if schedules:
+            if exists:
+                _, all_schedules, _ = module.run_command(f'-comma q association {policy_domain}', auto_exit=False)
+                all_schedules = all_schedules.split('\n')
+                for sched in all_schedules:
+                    sched = sched.split(',')
+                    if len(sched) == 3 and sched[2] == node.upper():
+                        node_schedules += [sched[1]]
+
             for schedule in schedules:
                 # Test if schedule exists and fail if not
                 module.find_one('schedule', f'{policy_domain} {schedule}', fail_on_not_found=True)
@@ -430,8 +439,15 @@ def main():
 
         if schedules:
             for schedule in schedules:
-                policy_domain = module.params.get('policy_domain')
-                module.perform_action('define', 'association', f'{policy_domain} {schedule} {node}', auto_exit=False)
+                if schedule.upper() not in node_schedules:
+                    module.perform_action('define', 'association', f'{policy_domain} {schedule} {node}', auto_exit=False)
+                else:
+                    # Remove them from the list because we will use this list to remove extra ones
+                    node_schedules.remove(schedule.upper())
+
+            # if any schedules exist for the node which weren't listed, then disassociate them
+            for schedule in node_schedules:
+                module.perform_action('delete', 'association', f'{policy_domain} {schedule} {node}', exists=True, auto_exit=False)
 
             module.exit_json(**module.json_output)
 
