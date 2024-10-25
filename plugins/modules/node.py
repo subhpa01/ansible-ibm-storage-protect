@@ -420,17 +420,18 @@ def main():
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
         schedules = module.params.get('schedules')
+        policy_domain = module.params.get('policy_domain')
         if schedules:
             for schedule in schedules:
                 # Test if schedule exists and fail if not
-                module.find_one('schedule', schedule, fail_on_not_found=True)
+                module.find_one('schedule', f'{policy_domain} {schedule}', fail_on_not_found=True)
 
         module.perform_action('update' if exists else 'register', 'node', node, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
 
         if schedules:
             for schedule in schedules:
                 policy_domain = module.params.get('policy_domain')
-                module.perform_action('define', 'association', f'{policy_domain} {schedule} {node}',auto_exit=False)
+                module.perform_action('define', 'association', f'{policy_domain} {schedule} {node}', auto_exit=False)
 
             module.exit_json(**module.json_output)
 
