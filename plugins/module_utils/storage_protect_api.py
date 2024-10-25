@@ -64,21 +64,30 @@ class StorageProtectModule(AnsibleModule):
                 self.fail_json(msg=e.stdout.decode('utf-8'), rc=e.returncode, **self.json_output)
             return e.returncode, e.stdout.decode('utf-8'), e
 
-    def find_one(self, object_type, name):
+    def find_one(self, object_type, name, fail_on_not_found=False):
         command = f"-comma q {object_type} {name} format=detailed"
         rc, out, _ = self.run_command(command, auto_exit=False, exit_on_fail=False)
-        self.json_output['exists'] = rc == 0
+        exists = rc == 0
+        self.json_output['exists'] = exists
+        if fail_on_not_found and not exists:
+            self.fail_json(msg=f'Could not find {object_type} with name {name}')
         return rc == 0, out
 
-    def perform_action(self, action, object_type, object_identifier, options='', exists=False, existing=None):
+    def perform_action(self, action, object_type, object_identifier, options='', exists=False, existing=None, auto_exit=True):
         if not exists and action in ['remove', 'delete']:
-            self.exit_json(**self.json_output)
+            if auto_exit:
+                self.exit_json(**self.json_output)
+            return 0
         command = f"{action} {object_type} {object_identifier} {options}"
         rc, output, error = self.run_command(command, auto_exit=False)
         if exists or rc == 10:
             # Check if idempotent
             _, new_object = self.find_one(object_type, object_identifier)
             self.json_output['changed'] = existing != new_object
-            self.exit_json(**self.json_output)
+            if auto_exit:
+                self.exit_json(**self.json_output)
+            return rc
         self.json_output['changed'] = True
-        self.exit_json(**self.json_output)
+        if auto_exit:
+            self.exit_json(**self.json_output)
+        return rc

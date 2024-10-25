@@ -34,6 +34,12 @@ options:
       type: str
       aliases:
         - name
+    schedules:
+      description:
+        - The schedules to associate with the node
+      required: True
+      type: list
+      elements: str
     node_password:
       description:
         - Specifies the client node password
@@ -295,6 +301,7 @@ from ..module_utils.storage_protect_api import StorageProtectModule
 def main():
     argument_spec = dict(
         node=dict(required=True, aliases=['name']),
+        schedules=dict(type='list', elements='str'),
         node_password=dict(no_log=True),
         node_password_expiry=dict(type='int', no_log=False),
         user_id=dict(),
@@ -338,6 +345,7 @@ def main():
         'backup_repl_rule_default': 'repl_state',
         'archive_repl_rule_default': 'repl_state',
         'space_repl_rule_default': 'repl_state',
+        'schedules': 'policy_domain',
     }
 
     module = StorageProtectModule(argument_spec=argument_spec, supports_check_mode=True, required_by=required_by)
@@ -411,7 +419,20 @@ def main():
             elif exists and opt in not_on_update:
                 module.warn(f'{opt} can not be updated so will not change if different from existing value.')
 
-        module.perform_action('update' if exists else 'register', 'node', node, options=options, exists=exists, existing=existing)
+        schedules = module.params.get('schedules')
+        if schedules:
+            for schedule in schedules:
+                # Test if schedule exists and fail if not
+                module.find_one('schedule', schedule, fail_on_not_found=True)
+
+        module.perform_action('update' if exists else 'register', 'node', node, options=options, exists=exists, existing=existing, auto_exit=schedules is None)
+
+        if schedules:
+            for schedule in schedules:
+                policy_domain = module.params.get('policy_domain')
+                module.perform_action('define', 'association', f'{policy_domain} {schedule} {node}',auto_exit=False)
+
+            module.exit_json(**module.json_output)
 
 
 if __name__ == "__main__":
