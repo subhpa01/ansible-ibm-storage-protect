@@ -125,8 +125,6 @@
     
     - name: Remove existing dsmcert files
       shell: "cd {{ tsm_client_bin }} && rm -rf dsmcert.*"
-      args:
-        warn: false
     
     - name: Add certificate to TSM client configuration
       command: "dsmcert -add -server {{ tsm_server_name }} -file {{ cert_file_path }}"
