@@ -72,11 +72,19 @@ class BAClientHelper:
             return False, None
 
         if self.is_aix():
-            rc, _, _ = self.run_cmd(
+            rc, out, _ = self.run_cmd(
                 "lslpp -L tivoli.tsm.client.ba.64bit.base",
                 check_rc=False
             )
             if rc == 0:
+                # Extract version from lslpp output
+                # Output format: "  tivoli.tsm.client.ba.64bit.base  8.1.26.0  C  F  ..."
+                for line in out.split('\n'):
+                    if 'tivoli.tsm.client.ba.64bit.base' in line:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            version = parts[1]
+                            return True, version
                 return True, None
             return False, None
 
@@ -151,13 +159,52 @@ class BAClientHelper:
         os.makedirs(dest, exist_ok=True)
 
         if self.is_aix():
-            cmd = f'cd "{dest}" && tar -xf "{src}"'
+            # Handle .tar.Z files on AIX (which may actually be gzip compressed)
+            if src.endswith('.tar.Z'):
+                # Detect actual compression type
+                cmd = f'file "{src}"'
+                rc, out, _ = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
+                
+                if 'gzip' in out.lower() or 'gz' in out.lower():
+                    # File is gzip compressed - pipe directly to tar to avoid file size issues
+                    self.log(f"Detected gzip compression, extracting with gunzip | tar")
+                    cmd = f'cd "{dest}" && gunzip -c "{src}" | tar -xf -'
+                    rc, _, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
+                    if rc != 0:
+                        self.module.fail_json(msg=f"Extraction failed: {err}")
+                else:
+                    # Try standard uncompress with ulimit set
+                    uncompressed_tar = src[:-2]  # Remove .Z extension
+                    self.log(f"Attempting uncompress")
+                    # Set ulimit to unlimited before uncompress to avoid file size errors
+                    cmd = f'ulimit -f unlimited && uncompress -f "{src}"'
+                    rc, _, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
+                    
+                    if rc != 0 and "not compressed" in err:
+                        self.log(f"File is not compressed, treating as regular tar file")
+                        tar_file = src
+                    elif rc != 0:
+                        self.module.fail_json(msg=f"Uncompress failed: {err}")
+                    else:
+                        if not os.path.exists(uncompressed_tar):
+                            self.module.fail_json(msg=f"Uncompressed file not found: {uncompressed_tar}")
+                        tar_file = uncompressed_tar
+                    
+                    # Extract the tar file with ulimit set
+                    cmd = f'ulimit -f unlimited && cd "{dest}" && tar -xf "{tar_file}"'
+                    rc, _, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
+                    if rc != 0:
+                        self.module.fail_json(msg=f"Extraction failed: {err}")
+            else:
+                cmd = f'cd "{dest}" && tar -xf "{src}"'
+                rc, _, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
+                if rc != 0:
+                    self.module.fail_json(msg=f"Extraction failed: {err}")
         else:
             cmd = f'tar -xf "{src}" -C "{dest}"'
-
-        rc, _, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
-        if rc != 0:
-            self.module.fail_json(msg=f"Extraction failed: {err}")
+            rc, _, err = self.run_cmd(cmd, use_unsafe_shell=True, check_rc=False)
+            if rc != 0:
+                self.module.fail_json(msg=f"Extraction failed: {err}")
 
         return dest
 

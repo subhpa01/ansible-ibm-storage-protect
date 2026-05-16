@@ -344,7 +344,7 @@ def extract_binary_package(src, dest, *, context: dict[str, Any]):
         
         try:
             _info(context=context, msg=cmd)
-            resp = exec_run(cmd=cmd, context=context)
+            resp = exec_run(cmd=cmd, context=context, shell=True)
             return resp["rc"] == 0
         except Exception as e:
             _error(context=context, msg=str(e))
@@ -524,7 +524,10 @@ def exec_run(context: dict[str, Any], cmd: list[str] | str, *, shell: bool = Fal
             cmd = " ".join(cmd)
         shell = True  # Force shell=True for AIX
     elif is_linux and isinstance(cmd, str):
-        cmd = shlex.split(cmd)
+        # Only split if shell=False (default behavior)
+        # If shell=True, keep as string to allow pipes and redirects
+        if not shell:
+            cmd = shlex.split(cmd)
     elif is_windows and type(cmd) is list:
         cmd = " ".join(cmd)
 
@@ -1492,13 +1495,15 @@ def ba_is_installed(context: dict[str, Any], oskey: Optional[str] = None, instal
 
                     ret_data["data"]["installedpackages"][package_id] = package_version
 
-                if ret_data["status"]:
-                    ret_data["message"] = "SP Server packages are installed: " + str(len(ret_data["data"]["installedpackages"]))
-                return ret_data
+            # Check results after processing all lines
+            if ret_data["data"]["installedpackages"]:
+                ret_data["status"] = True
+                ret_data["message"] = "SP Server packages are installed: " + str(len(ret_data["data"]["installedpackages"]))
             else:
                 ret_data["status"] = False
                 ret_data["message"] = "SP Server packages not installed"
-                return ret_data
+            
+            return ret_data
         else:
             ret_data["status"] = False
             ret_data["message"] = "Error while fetching list of installed packages: " + str(resp["rc"])
