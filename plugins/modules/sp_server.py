@@ -626,7 +626,7 @@ class BA_SERVER_SETUP:
         self.log.info("Extracting binary: {}".format(artifact_path))
 
         if not utils1.extract_binary_package(src=artifact_path, dest=artifact_path_extracted, context=self.ctx):
-            self.log.error("Extrat of binary failed")
+            self.log.error("Extraction of binary failed")
             return False
         
         self.log.info("Extracted location: {}".format(artifact_path_extracted))
@@ -684,13 +684,18 @@ class BA_SERVER_SETUP:
         current_data = utils1.ba_is_installed(context=self.ctx, oskey=os_name, install_data=sp_server_constants.offerings_metadata[install_component_name])  # type: ignore[arg-type]
 
         final_installdata = {}
+        is_upgrade = False
+        
+        # Get the package ID from metadata to check against installed packages
+        package_id = sp_server_constants.offerings_metadata[install_component_name]["id"]
 
-        if install_component_name in current_data["data"]["installedpackages"]:
-            if utils1.version_is_newer(current=current_data["data"]["installedpackages"][install_component_name], candidate=version):
+        if package_id in current_data["data"]["installedpackages"]:
+            is_upgrade = True
+            if utils1.version_is_newer(current=current_data["data"]["installedpackages"][package_id], candidate=version):
                 final_installdata[install_component_name] = sp_server_constants.offerings_metadata[install_component_name]
             else:
                 self.log.warning("Component {} is attempting to install older version. Skipping install/upgrade".format(install_component_name))
-                self.log.warning("Current installed version: {}, Candidate install version: {}".format(current_data["data"]["installedpackages"][install_component_name], version))
+                self.log.warning("Current installed version: {}, Candidate install version: {}".format(current_data["data"]["installedpackages"][package_id], version))
         else:
             final_installdata[install_component_name] = sp_server_constants.offerings_metadata[install_component_name]
 
@@ -731,15 +736,111 @@ class BA_SERVER_SETUP:
                 return False
             else:
                 self.log.debug("Converted binary to linux line endings")
+        
+        # For upgrade scenarios, patch install.sh to filter -skipUpgradeCheck before calling imcl
+        # The install.sh has contradictory logic: it requires the flag but passes it to imcl which rejects it
+        # This applies to both Linux and AIX
+        if is_upgrade and os_name.lower().strip() in ["linux", "aix"]:
+            self.log.info("Upgrade scenario detected - patching install.sh to filter -skipUpgradeCheck")
+            
+            # Create a patch script that modifies install.sh in place
+            # AIX sed doesn't support -i flag, so we use temp file approach that works on both platforms
+            # AIX /bin/sh is ksh, not bash, so we need POSIX-compliant shell syntax (no bash arrays)
+            patch_script = os.path.join(artifact_path_extracted, "patch_install.sh")
+            patch_content = f"""#!/bin/sh
+# Patch install.sh to filter -skipUpgradeCheck before calling imcl
+# Compatible with both Linux and AIX (POSIX shell syntax, no bash arrays)
 
-        install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense".format(respfile=xmlfile)
+INSTALL_SH="{install_script_fullfilepath}"
+TEMP_FILE="${{INSTALL_SH}}.tmp"
+
+# Backup original
+cp "$INSTALL_SH" "${{INSTALL_SH}}.backup"
+
+# Find ALL occurrences of $command "$@"
+echo "Searching for all command execution lines..."
+grep -n '\\$command "\\$@"' "$INSTALL_SH"
+
+# Add the filtering function at the beginning of the file (after shebang)
+# Use POSIX-compliant syntax (no bash arrays) for AIX ksh compatibility
+{{
+  head -1 "$INSTALL_SH"
+  cat << 'FILTER_FUNC'
+# Function to filter out -skipUpgradeCheck argument (POSIX-compliant)
+filter_args() {{
+  FILTERED_ARGS=""
+  for arg in "$@"; do
+    case "$arg" in
+      -skipUpgradeCheck)
+        # Skip this argument
+        ;;
+      *)
+        # Add to filtered args with proper quoting
+        if [ -z "$FILTERED_ARGS" ]; then
+          FILTERED_ARGS="$arg"
+        else
+          FILTERED_ARGS="$FILTERED_ARGS $arg"
+        fi
+        ;;
+    esac
+  done
+}}
+FILTER_FUNC
+  tail -n +2 "$INSTALL_SH"
+}} > "$TEMP_FILE"
+
+# Now replace all $command "$@" with filtered version using temp file
+# Use eval to properly handle the filtered arguments string
+sed 's/\\$command "\\$@"/filter_args "$@"; eval \\$command $FILTERED_ARGS/g' "$TEMP_FILE" > "${{TEMP_FILE}}.2"
+mv "${{TEMP_FILE}}.2" "$INSTALL_SH"
+rm -f "$TEMP_FILE"
+
+# Restore execute permissions
+chmod +x "$INSTALL_SH"
+
+# Verify the patch
+if grep -q "filter_args" "$INSTALL_SH"; then
+    echo "Successfully patched install.sh - filtering function added"
+    echo "Filter function:"
+    head -20 "$INSTALL_SH" | tail -15
+    echo ""
+    echo "Modified command executions:"
+    grep -n "filter_args" "$INSTALL_SH" | head -5
+else
+    echo "ERROR: Patch verification failed - filter_args not found"
+    exit 1
+fi
+"""
+            with open(patch_script, 'w') as f:
+                f.write(patch_content)
+            
+            chmod_cmd = f"chmod +x {patch_script}"
+            utils1.exec_run(cmd=chmod_cmd, context=self.ctx)
+            
+            # Run the patch script
+            patch_resp = utils1.exec_run(cmd=patch_script, context=self.ctx, shell=True)
+            self.log.debug(f"Patch script output: {patch_resp}")
+            
+            if patch_resp["rc"] != 0:
+                self.log.error(f"Patch script failed: {patch_resp}")
+                self.log.error("Cannot proceed with upgrade without patching install.sh")
+                return False
+            else:
+                self.log.info(f"Patch script succeeded: {patch_resp.get('stdout', '')}")
+
+        # For upgrade scenarios in SP 8.2.2+, add -skipUpgradeCheck flag to install.sh
+        if is_upgrade:
+            install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense -skipUpgradeCheck".format(respfile=xmlfile)
+            self.log.info("Using -skipUpgradeCheck flag for silent upgrade")
+        else:
+            install_cmd = install_script_fullfilepath + " -s -input {respfile} -acceptLicense".format(respfile=xmlfile)
 
         if os_name.lower() == "aix":
             install_cmd = "ulimit -f unlimited && ulimit -c unlimited && ulimit -n unlimited && " + install_cmd
             
         self.log.debug("Install command: {}".format(install_cmd))
         
-        resp = utils1.exec_run(cmd=install_cmd, context=self.ctx)
+        resp = utils1.exec_run(cmd=install_cmd, context=self.ctx, shell=True)
         self.log.debug(resp)
 
         return resp["rc"] == 0
@@ -785,20 +886,75 @@ class BA_SERVER_SETUP:
                 if match:
                     version_info = match.group(1)
             
-            # Clean up Windows user and group after successful uninstall
+            # Clean up platform-specific remnants after successful uninstall
             if os_name.lower().strip() == "windows":
                 self._cleanup_windows_user_group()
+            elif os_name.lower().strip() in ["linux", "aix"]:
+                self._cleanup_linux_aix_remnants()
                 
             # Print final summary
             self.log.info("UNINSTALL COMPLETED SUCCESSFULLY")
             self.log.info("Uninstalled Version: {}".format(version_info))
             self.log.info("  ✓ SP Server software removed")
+            self.log.info("  ✓ Installation directories cleaned")
+            self.log.info("  ✓ Instance remnants removed")
             self.log.info("System is now clean and ready for fresh installation")
             return True
         else:
             self.log.error("Uninstall failed with return code: {}".format(resp["rc"]))
             return False
         
+    def _cleanup_linux_aix_remnants(self) -> None:
+        """Clean up Linux/AIX installation directories and instance remnants after uninstall"""
+        install_dir = self.ansible_vars_data.get("install_dir", "/opt/tivoli/tsm")  # type: ignore
+        tsm_user = self.ansible_vars_data.get("tsm_user", "tsminst1")  # type: ignore
+        
+        self.log.info("Starting comprehensive Linux/AIX cleanup...")
+        
+        # 1. Remove installation directory completely
+        if utils1.fs_exists(path=install_dir, context=self.ctx):
+            self.log.info("Removing installation directory: {}".format(install_dir))
+            resp = utils1.exec_run(cmd="rm -rf {}".format(install_dir), context=self.ctx)
+            if resp["rc"] == 0:
+                self.log.info("Removed installation directory: {}".format(install_dir))
+            else:
+                self.log.warning("Failed to remove installation directory {}: {}".format(install_dir, resp["stderr"]))
+        else:
+            self.log.debug("Installation directory does not exist: {}".format(install_dir))
+        
+        # 2. Remove instance home directory if exists
+        instance_home = "/home/{}".format(tsm_user)
+        if utils1.fs_exists(path=instance_home, context=self.ctx):
+            self.log.info("Removing instance home directory: {}".format(instance_home))
+            resp = utils1.exec_run(cmd="rm -rf {}".format(instance_home), context=self.ctx)
+            if resp["rc"] == 0:
+                self.log.info("Removed instance home directory: {}".format(instance_home))
+            else:
+                self.log.warning("Failed to remove instance home directory {}: {}".format(instance_home, resp["stderr"]))
+        
+        # 3. Remove any ADSM/TSM configuration files
+        config_paths = [
+            "/etc/adsm*",
+            "/var/tsm*",
+            "/opt/tivoli"  # Remove parent if empty
+        ]
+        
+        for config_path in config_paths:
+            self.log.debug("Checking for config path: {}".format(config_path))
+            resp = utils1.exec_run(cmd="rm -rf {}".format(config_path), context=self.ctx)
+            if resp["rc"] == 0:
+                self.log.debug("Cleaned up config path: {}".format(config_path))
+        
+        # 4. Try to remove the instance user (may fail if user doesn't exist, which is fine)
+        self.log.debug("Attempting to remove user: {}".format(tsm_user))
+        resp = utils1.exec_run(cmd="userdel -r {} 2>/dev/null || true".format(tsm_user), context=self.ctx)
+        if resp["rc"] == 0:
+            self.log.info("Removed user: {}".format(tsm_user))
+        else:
+            self.log.debug("User {} may not exist or already removed".format(tsm_user))
+        
+        self.log.info("Linux/AIX cleanup completed")
+    
     def _cleanup_windows_user_group(self) -> None:
         """Clean up Windows user, group, folders, and registry entries created during installation"""
         tsm_user = self.ansible_vars_data.get("tsm_user", "tsminst1")  # type: ignore
