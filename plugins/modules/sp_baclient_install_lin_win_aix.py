@@ -1,6 +1,6 @@
 
 # sp_baclient_install.py
-"""
+r"""
 Combined Ansible-module / standalone installer wrapper.
 
 - On Linux (when run as an Ansible custom module), uses AnsibleModule and behaves as an Ansible module.
@@ -18,8 +18,16 @@ import argparse
 import subprocess
 from typing import Tuple
 
-# import helper class from same dir
-from ..module_utils.ba_client_updated_linux_win_aix import BAClientHelper
+# Try to import from Ansible collection structure first
+try:
+    from ansible_collections.ibm.storage_protect.plugins.module_utils.ba_client_updated_linux_win_aix import BAClientHelper
+except ImportError:
+    # Fallback for relative import when running as Ansible module
+    try:
+        from ansible.module_utils.ba_client_updated_linux_win_aix import BAClientHelper
+    except ImportError:
+        # Last resort: try direct relative import
+        from ..module_utils.ba_client_updated_linux_win_aix import BAClientHelper
 
 def is_windows():
     return platform.system().lower().startswith("win")
@@ -93,20 +101,32 @@ def linux_main():
     temp_dir = module.params['temp_dir']
 
     installed, installed_version = utils.check_installed()
-    version_available = utils.file_exists(package_source)
-    installed_version_list = normalize_version(installed_version) if installed_version else []
-    user_version_list = normalize_version(desired_version) if desired_version else []
-
-    if installed_version and user_version_list > installed_version_list and version_available:
-        action = "upgrade"
-    elif not installed_version and version_available:
-        action = "install"
-    else:
-        action = "none"
-
-    utils.log(f"Determined BA Client action: {action}")
 
     try:
+        # Handle uninstall first, regardless of other conditions
+        if state == 'absent':
+            if not installed:
+                module.exit_json(changed=False, msg="BA Client not installed, nothing to remove")
+            uninstalled = utils.uninstall_ba_client()
+            if uninstalled:
+                module.exit_json(changed=True, msg="BA Client successfully uninstalled")
+            else:
+                module.exit_json(changed=False, msg="BA Client was not installed, nothing to uninstall")
+
+        # For install/upgrade, determine action
+        version_available = utils.file_exists(package_source)
+        installed_version_list = normalize_version(installed_version) if installed_version else []
+        user_version_list = normalize_version(desired_version) if desired_version else []
+
+        if installed_version and user_version_list > installed_version_list and version_available:
+            action = "upgrade"
+        elif not installed_version and version_available:
+            action = "install"
+        else:
+            action = "none"
+
+        utils.log(f"Determined BA Client action: {action}")
+
         if action == 'install':
             installed, _ = utils.check_installed()
             if installed and not force:
@@ -121,15 +141,6 @@ def linux_main():
         elif action == 'upgrade':
             upgrade_result = utils.upgrade_ba_client(package_source, desired_version, install_path, ba_client_version, state, temp_dir)
             module.exit_json(**upgrade_result)
-
-        elif state == 'absent':
-            if not installed:
-                module.exit_json(changed=False, msg="BA Client not installed, nothing to remove")
-            uninstalled = utils.uninstall_ba_client()
-            if uninstalled:
-                module.exit_json(changed=True, msg="BA Client successfully uninstalled")
-            else:
-                module.exit_json(changed=False, msg="BA Client was not installed, nothing to uninstall")
 
         module.exit_json(changed=False, msg="No action taken: BA Client is already at the desired state or no package available")
     except Exception as e:
